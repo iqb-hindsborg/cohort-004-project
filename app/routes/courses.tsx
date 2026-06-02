@@ -2,12 +2,14 @@ import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from
 import type { Route } from "./+types/courses";
 import { buildCourseQuery, getLessonCountForCourse } from "~/services/courseService";
 import { getAllCategories } from "~/services/categoryService";
+import { getRatingStatsForCourses } from "~/services/ratingService";
 import { CourseStatus } from "~/db/schema";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AlertTriangle, BookOpen, Search } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
+import { StarRatingDisplay } from "~/components/star-rating";
 import { UserAvatar } from "~/components/user-avatar";
 import { getCurrentUserId } from "~/lib/session";
 import { formatPrice } from "~/lib/utils";
@@ -55,17 +57,26 @@ export async function loader({ request }: Route.LoaderArgs) {
     }
   }
 
+  const courseIds = courses.map((c) => c.id);
+  const ratingStatsMap = getRatingStatsForCourses(courseIds);
+
   const coursesWithLessonCount = courses.map((course) => {
     const userProgress = progressMap.get(course.id);
     const pppPrice = course.pppEnabled
       ? calculatePppPrice(course.price, country)
       : course.price;
+    const ratingStats = ratingStatsMap.get(course.id) ?? {
+      average: null,
+      count: 0,
+    };
     return {
       ...course,
       lessonCount: getLessonCountForCourse(course.id),
       progress: userProgress?.progress ?? null,
       completedLessons: userProgress?.completedLessons ?? null,
       pppPrice,
+      ratingAverage: ratingStats.average,
+      ratingCount: ratingStats.count,
     };
   });
 
@@ -209,6 +220,12 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                   <p className="line-clamp-2 text-sm text-muted-foreground">
                     {course.description}
                   </p>
+                </CardContent>
+                <CardContent className="pt-0">
+                  <StarRatingDisplay
+                    average={course.ratingAverage}
+                    count={course.ratingCount}
+                  />
                 </CardContent>
                 {course.progress !== null && course.progress > 0 && (
                   <CardContent className="pt-0">
